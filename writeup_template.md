@@ -1,5 +1,7 @@
 # **Behavioral Cloning** 
 
+## by David Aliaga
+
 ## Writeup Template
 
 ### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
@@ -18,13 +20,20 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 
-[image1]: ./examples/placeholder.png "Model Visualization"
-[image2]: ./examples/placeholder.png "Grayscaling"
-[image3]: ./examples/placeholder_small.png "Recovery Image"
-[image4]: ./examples/placeholder_small.png "Recovery Image"
-[image5]: ./examples/placeholder_small.png "Recovery Image"
-[image6]: ./examples/placeholder_small.png "Normal Image"
-[image7]: ./examples/placeholder_small.png "Flipped Image"
+[image1]: ./examples/cnn-architecture.png "Nvidia Model"
+[image2]: ./examples/data1_1.png "Original Data"
+[image3]: ./examples/data1_2.png "After taking some data"
+[image4]: ./examples/data1_3.png "Training Validation Data"
+[image5]: ./examples/preprocess.png "Preprocessed Image"
+[image6]: ./examples/zoom.png "Zoom Image"
+[image7]: ./examples/pan.png "Pan Image"
+[image8]: ./examples/brightness.png "Brightness Image"
+
+[image9]: ./examples/flipped.png "Flipped Image"
+
+[image10]: ./examples/augmented.png "Augmented Image"
+
+[image11]: ./examples/batch_gen.png "Batch generated Image"
 
 ## Rubric Points
 ### Here I will consider the [rubric points](https://review.udacity.com/#!/rubrics/432/view) individually and describe how I addressed each point in my implementation.  
@@ -35,6 +44,7 @@ The goals / steps of this project are the following:
 #### 1. Submission includes all required files and can be used to run the simulator in autonomous mode
 
 My project includes the following files:
+* BehavioralClonning.ipynb This isa Google Colab Notebook where I created and trained the model, taking advantage of the GPU capabilities offered by Colab. 
 * model.py containing the script to create and train the model
 * drive.py for driving the car in autonomous mode
 * model.h5 containing a trained convolution neural network 
@@ -48,82 +58,188 @@ python drive.py model.h5
 
 #### 3. Submission code is usable and readable
 
+The BehavioralClonning.ipynb contains the code for training and saving the convolutional neural network. Since it is a notebook it contain the code in well explained portions by using text. 
+
+
 The model.py file contains the code for training and saving the convolution neural network. The file shows the pipeline I used for training and validating the model, and it contains comments to explain how the code works.
 
 ### Model Architecture and Training Strategy
 
 #### 1. An appropriate model architecture has been employed
 
-My model consists of a convolution neural network with 3x3 filter sizes and depths between 32 and 128 (model.py lines 18-24) 
+My model consists of a convolution neural network based on Nvidia [End-to-End Deep Learning for Self-Driving Cars](https://developer.nvidia.com/blog/deep-learning-self-driving-cars/) depicted by 
 
-The model includes RELU layers to introduce nonlinearity (code line 20), and the data is normalized in the model using a Keras lambda layer (code line 18). 
+![alt text][image1]
+
+with the following structure:
+
+| Layer   |      Output shape      |  #Param |
+|----------|:-------------:|------:|
+| conv2d (Conv2D) |  (None, 31, 98, 24) | 1824  |
+| conv2d_1 (Conv2D) |    (None, 14, 47, 36)  |  21636  |
+| conv2d_2 (Conv2D) | (None, 5, 22, 48) |    43248 |
+| conv2d_3 (Conv2D) | (None, 3, 20, 64)  |    27712 |
+| conv2d_4 (Conv2D)  | (None, 1, 18, 64) | 36928  |
+| dropout (Dropout) | (None, 1, 18, 64) |   0 |
+| flatten (Flatten) | (None, 1152) |   0 |
+| dense (Dense) | (None, 100)|  115300  |
+| dropout_1 (Dropout) | (None, 100) |    0 |
+| dense_1 (Dense)| (None, 50) |   5050  |
+| dropout_2 (Dropout) | (None, 50) |   0 |
+| dense_2 (Dense) | (None, 10) |   510  |
+| dense_3 (Dense) | (None, 1) |   11 |
+| Total params: 252,219 |
+| Trainable params: 252,219 |
+| Non-trainable params: 0 |
+
+
+ As you can see the normalization is done outside the model in the preprocessing phase.
+
+The model includes ELU layers which is similar to RELU for positive numbers, with y being the x value. but if it is negative it is not 0 but a value slightly below 0. which avoids the *dead RELU* problem in which neurons feed always values of 0 to other neurons therefore dying. Once a RELU ends up dead, it is unlikely to recover because gradient descent will not alter its weights.
+
+I did not use Keras lambda layers because my normalization processes include OpenCV operations which proved difficult to implement with Lambda layers.
+
+An example of the normalization performed can be seen in  
+
+![alt text][image5]
+
+In the left you have one sample image. 
+In the right, the image has been first cut the first 60 rows above and the 25 rows below. Then the image was converted to YUV, a gaussian blur was applied , the image was resized to 200,66 and finally normalized to [0,1]
+
 
 #### 2. Attempts to reduce overfitting in the model
 
-The model contains dropout layers in order to reduce overfitting (model.py lines 21). 
+The model contains three dropout layers in order to reduce overfitting as you can see in the structure above. 
 
-The model was trained and validated on different data sets to ensure that the model was not overfitting (code line 10-16). The model was tested by running it through the simulator and ensuring that the vehicle could stay on the track.
+One immediately after the convolution layers (before flattening), one after the first dense layer and one after the second dense layer.
+
+I used train and validation set split as you can see in the line 
+
+    X_train,X_valid,y_train,y_valid=train_test_split(im,st,test_size=0.2,random_state=6)
+    print('Train size',len(X_train))
+    print('Validation size',len(X_valid))
+
+The result distribution is seen in
+
+![alt text][image4]
+
+
+~~(model.py lines 21)~~ 
+
+The model was trained and validated on different data sets to ensure that the model was not overfitting. The model was tested by running it through the simulator and ensuring that the vehicle could stay on the track.
 
 #### 3. Model parameter tuning
 
-The model used an adam optimizer, so the learning rate was not tuned manually (model.py line 25).
+The model used an adam optimizer, so the learning rate was not tuned manually. The learning rate was 0.001. ~~(model.py line 25).~~
 
 #### 4. Appropriate training data
 
-Training data was chosen to keep the vehicle driving on the road. I used a combination of center lane driving, recovering from the left and right sides of the road ... 
+Training data was chosen to keep the vehicle driving on the road. Through the use of eliminating some excessive data from the central values (0.0) and image augmentation, I managed to get data suitable for the training phase.
 
 For details about how I created the training data, see the next section. 
 
-### Model Architecture and Training Strategy
+### Architecture and Training Documentation
 
 #### 1. Solution Design Approach
 
-The overall strategy for deriving a model architecture was to ...
+As you can see in the BehavioralClonning.ipynb file, I first loaded the data that is stored in a different repository of my Github account. (I have used two different set of data, the results are quite similar). The set I am presenting in this report is in the BehavioralCloneData repository and is given by udacity. The other set is in the BehavioralCloningTrackData repository. 
 
-My first step was to use a convolution neural network model similar to the ... I thought this model might be appropriate because ...
+After that I used pandas to have the data of the csv file on a DataFrame. I plot the data to see the distribution:
 
-In order to gauge how well the model was working, I split my image and steering angle data into a training and validation set. I found that my first model had a low mean squared error on the training set but a high mean squared error on the validation set. This implied that the model was overfitting. 
+![alt text][image2]
 
-To combat the overfitting, I modified the model so that ...
+As you can see there is an excesive amount of data for the central bin. If I use all these data, the car will be skewed toward always going straight which will produce crashes. So I eliminated the data in excess (more than 800)
 
-Then I ... 
+![alt text][image3]
 
-The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track... to improve the driving behavior in these cases, I ....
+Here you can see the distribution of data after eliminating the excess. You can notice two things: one, there is some tendency toward going to the left, which is obvious since the training track mainly goes to the left. The second is that there is very few data on the extremes which means there is few data for radical steering changes.
+
+To combat this I later applied Image Augmentation so that the car could be trained to go to the right as well and also used the lateral cameras for steering changes.
+
+It was time to get training and validation data. To do this, first I extracted the following data from the DataSet: 
+
+* center : The image path for the center camera
+* left: The image path for the left camera
+* right: The image path for the right camera
+* steering: The steering angle.
+
+Then I went through all data one by one and built two arrays, one with the image paths and one with the corresponding steering angle. For the center image this was just as it was, but for the left and right camera I added/substracted 0.25 to the steering angle. 
+
+Then I got these two arrays. It was time to construct the validation and training sets. 
+
+In order to have data to validate the model, I split the data into training and validation sets.(I separated 20% of data for validation)
+
+You have seen already but I repeat here, the distribution of both sets is quite similar:
+
+![alt text][image4]
+
+
+
+The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track. To improve the driving behavior in these cases, I applied Data Augmentation 
 
 At the end of the process, the vehicle is able to drive autonomously around the track without leaving the road.
 
 #### 2. Final Model Architecture
 
-The final model architecture (model.py lines 18-24) consisted of a convolution neural network with the following layers and layer sizes ...
+As I mentioned earlier, the final model architecture ~~(model.py lines 18-24)~~ consisted of a convolution neural network based on Nvidia [End-to-End Deep Learning for Self-Driving Cars](https://developer.nvidia.com/blog/deep-learning-self-driving-cars/) with the following layers and layer sizes ...
 
-Here is a visualization of the architecture (note: visualizing the architecture is optional according to the project rubric)
+I reproduce again the structure of the model
 
 ![alt text][image1]
 
+The table containing the layer summary was written in the previous section
+
 #### 3. Creation of the Training Set & Training Process
 
-To capture good driving behavior, I first recorded two laps on track one using center lane driving. Here is an example image of center lane driving:
+I have used the data provided by Udacity and have also used a different set of data. All the data is from track one.  I preprocessed the data, first cropping the upper 60 lines and the lower 25 because they carry no data significant to the task. Then I changed the data to YUV, applied Gaussian Blur and resized the image to fit to the model input. Finally I normalized the data to [0,1]. The result is like this:
 
-![alt text][image2]
 
-I then recorded the vehicle recovering from the left side and right sides of the road back to center so that the vehicle would learn to .... These images show what a recovery looks like starting from ... :
-
-![alt text][image3]
-![alt text][image4]
 ![alt text][image5]
 
-Then I repeated this process on track two in order to get more data points.
+Then I also used data augmentation. For this I applied:
 
-To augment the data sat, I also flipped images and angles thinking that this would ... For example, here is an image that has then been flipped:
+* Zooming:
+
+I zoomed an image in the range of 0 to 50% as in the image: 
 
 ![alt text][image6]
+
+* Pan
+
+I translate an image in both x and y axis 10%.
+
 ![alt text][image7]
 
-Etc ....
+* Brightness
 
-After the collection process, I had X number of data points. I then preprocessed this data by ...
+I changed the brightness of the image by multiplying it by a value sampled from the range (0.2,1.2) (The Darker number of images is to be used rather frequently than Lighter ones)
+
+![alt text][image8]
+
+* Flippling
+
+This augmentation is very important to make sure that the data is not skewed toward some direction (for example toward the left)
+
+When the image is flipped, the steering of course has to be flipped to the negative value. 
+
+![alt text][image9]
+
+I combined all these augmenatations in a function (*random_augment*) in which *randomly* an image can be zoomed, panned, made darker or lighter or flip
+As a result I have:
+
+![alt text][image10]
+
+Finally I am going to describe the Batch Generation. 
+
+The data that is going to be input to the model is going to be provided by a batch generator function *batch_generator*.
+
+The function distinguish if it is for training or validation. If it is for training it generates a batch of data that is going to be randomly augmented (as described before). If it is for validation it simply selects random data from the original data. The image is preprocessed before outputing it for the model.
+
+An example is the following picture. In the left a batch (of 1) of images for training and another in the right for validation:
+
+![alt text][image11]
 
 
-I finally randomly shuffled the data set and put Y% of the data into a validation set. 
+-------------------------
 
-I used this training data for training the model. The validation set helped determine if the model was over or under fitting. The ideal number of epochs was Z as evidenced by ... I used an adam optimizer so that manually training the learning rate wasn't necessary.
+
