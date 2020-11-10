@@ -9,6 +9,9 @@ from io import BytesIO
 from PIL import Image
 import cv2
 
+from datetime import datetime
+import os
+import shutil
 import argparse
 
 
@@ -59,10 +62,10 @@ def telemetry(sid, data):
     if data:
         speed = float(data['speed'])
         image = Image.open(BytesIO(base64.b64decode(data['image'])))
-        image = np.asarray(image)
-        image = img_preprocess(image)
-        image = np.array([image])
-        steering_angle = float(model.predict(image))
+        image_array = np.asarray(image)
+        image_array = img_preprocess(image_array)
+        image_array = np.array([image_array])
+        steering_angle = float(model.predict(image_array))
     
         throttle = controller.update(float(speed))
     
